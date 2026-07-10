@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EcoDex - 멸종위기 생물 도감 게임</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Malgun Gothic', sans-serif; }
+        body { background-color: #f4f9f4; color: #333; }
+        header { background-color: #2e7d32; color: white; padding: 1rem; text-align: center; font-size: 1.5rem; font-weight: bold; }
+
+        .back-home-btn {
+            display: inline-flex; align-items: center; gap: 6px; background: none; border: none;
+            color: #2e7d32; font-size: 0.95rem; font-weight: bold; cursor: pointer; margin-bottom: 1rem; padding: 0.3rem 0;
+        }
+        .back-home-btn:hover { text-decoration: underline; }
+
+        .container { max-width: 800px; margin: 2rem auto; padding: 1.5rem; background: white; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .page { display: none; }
+        .page.active { display: block; }
+        h2 { border-bottom: 2px solid #2e7d32; padding-bottom: 0.5rem; margin-bottom: 1.5rem; color: #2e7d32; }
+
+        .status-card { background: #e8f5e9; padding: 1rem; border-radius: 8px; margin-bottom: 1rem; }
+        .status-item { margin: 0.5rem 0; font-size: 1.1rem; }
+
+        .quick-links { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 1.5rem; }
+        .quick-link-btn {
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            gap: 6px; padding: 1.2rem 0.5rem; background: #ffffff; border: 2px solid #81c784;
+            border-radius: 12px; cursor: pointer; transition: 0.2s; color: #2e7d32; font-weight: bold;
+            font-size: 0.95rem;
+        }
+        .quick-link-btn:hover { background: #2e7d32; color: white; transform: translateY(-3px); box-shadow: 0 4px 10px rgba(46,125,50,0.25); }
+        .quick-link-icon { font-size: 1.8rem; }
+
+        .quiz-box { text-align: center; }
+        .question { font-size: 1.25rem; font-weight: bold; margin-bottom: 1.5rem; }
+        .options { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .options button { padding: 1rem; font-size: 1rem; background: #fff; border: 2px solid #81c784; border-radius: 8px; cursor: pointer; transition: 0.2s; }
+        .options button:hover { background: #e8f5e9; }
+        .options button:disabled:hover { background: #fff; }
+        #quiz-result { margin-top: 1rem; font-weight: bold; font-size: 1.1rem; min-height: 1.5rem; }
+
+        .category-tabs { display: flex; gap: 8px; margin-bottom: 1.5rem; flex-wrap: wrap; }
+        .category-tabs button {
+            flex: 1; min-width: 90px; padding: 0.7rem 0.5rem; font-size: 0.95rem;
+            background: #f1f8f2; border: 2px solid #a5d6a7; border-radius: 20px;
+            cursor: pointer; transition: 0.2s; color: #2e7d32; font-weight: bold;
+        }
+        .category-tabs button:hover { background: #c8e6c9; }
+        .category-tabs button.active { background: #2e7d32; border-color: #2e7d32; color: white; }
+
+        .dex-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+        .dex-item {
+            border: 2px solid #ccc; border-radius: 8px; padding: 1rem; background: #fafafa;
+            opacity: 0.6; text-align: center; cursor: default; transition: transform 0.15s, box-shadow 0.15s;
+        }
+        .dex-item.unlocked { border-color: #2e7d32; background: #fff; opacity: 1; cursor: pointer; }
+        .dex-item.unlocked:hover { transform: translateY(-3px); box-shadow: 0 4px 10px rgba(46,125,50,0.25); }
+        .dex-item .dex-icon { font-size: 2.2rem; margin-bottom: 0.4rem; }
+        .badge { display: inline-block; padding: 0.25rem 0.5rem; background: #e0e0e0; font-size: 0.8rem; border-radius: 4px; margin-top: 5px; }
+        .unlocked .badge { background: #2e7d32; color: white; }
+        .category-tag {
+            display: inline-block; font-size: 0.75rem; padding: 0.15rem 0.5rem; border-radius: 10px;
+            margin-bottom: 0.4rem; background: #dcedc8; color: #33691e; font-weight: bold;
+        }
+        .dex-hint { color: #999; margin-top: 10px; font-size: 0.9rem; }
+        .empty-msg { text-align: center; color: #888; padding: 2rem 0; grid-column: 1 / -1; }
+
+        .achievement-list { display: flex; flex-direction: column; gap: 10px; }
+        .achievement-item { display: flex; justify-content: space-between; align-items: center; padding: 1rem; background: #f5f5f5; border-radius: 8px; border-left: 5px solid #ccc; }
+        .achievement-item.cleared { background: #e8f5e9; border-left-color: #2e7d32; font-weight: bold; }
+        .achievement-status { font-size: 0.95rem; white-space: nowrap; margin-left: 1rem; }
+
+        .modal-overlay {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.55); z-index: 1000; justify-content: center; align-items: center;
+            padding: 1rem; animation: fadeIn 0.2s ease-out;
+        }
+        .modal-overlay.open { display: flex; }
+        .modal-box {
+            background: white; border-radius: 12px; max-width: 480px; width: 100%;
+            padding: 1.75rem; position: relative; box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            animation: slideUp 0.25s ease-out;
+        }
+        .modal-close {
+            position: absolute; top: 0.75rem; right: 0.9rem; background: none; border: none;
+            font-size: 1.4rem; cursor: pointer; color: #888; line-height: 1;
+        }
+        .modal-close:hover { color: #333; }
+        .modal-icon { font-size: 3rem; text-align: center; margin-bottom: 0.5rem; }
+        .modal-box h3 { color: #2e7d32; text-align: center; margin-bottom: 0.25rem; font-size: 1.4rem; }
+        .modal-category { text-align: center; margin-bottom: 1rem; }
+        .modal-details p { margin: 0.6rem 0; line-height: 1.6; font-size: 0.95rem; }
+        .modal-details strong { color: #1b5e20; }
+        .modal-status-badge {
+            display: inline-block; margin: 0.75rem auto 0; padding: 0.3rem 1rem;
+            background: #d32f2f; color: white; border-radius: 20px; font-size: 0.85rem; font-weight: bold;
+        }
+        .modal-status-row { text-align: center; }
+
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+
+        #toast {
+            position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(20px);
+            background: #333; color: white; padding: 0.75rem 1.25rem; border-radius: 8px;
+            font-size: 0.9rem; opacity: 0; pointer-events: none; transition: 0.3s; z-index: 2000;
+        }
+        #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+        .map-desc { color: #555; margin-bottom: 1rem; font-size: 0.95rem; line-height: 1.5; }
+        #habitat-map { width: 100%; height: 420px; border-radius: 10px; border: 2px solid #a5d6a7; z-index: 0; }
+        .map-legend { display: flex; gap: 1rem; margin-top: 0.75rem; flex-wrap: wrap; font-size: 0.85rem; color: #555; }
+        .map-legend span { display: flex; align-items: center; gap: 5px; }
+        .legend-dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
+        .legend-dot.unlocked-dot { background: #2e7d32; }
+        .legend-dot.locked-dot { background: #9e9e9e; }
+        .leaflet-popup-content { text-align: center; }
+        .popup-icon { font-size: 1.6rem; }
+        .popup-title { font-weight: bold; margin: 0.2rem 0; }
+        .popup-btn {
+            margin-top: 0.4rem; padding: 0.3rem 0.7rem; background: #2e7d32; color: white;
+            border: none; border-radius: 6px; cursor: pointer; font-size: 0.8rem;
+        }
+
+        @media (max-width: 500px) {
+            .dex-grid { grid-template-columns: 1fr; }
+            .options { grid-template-columns: 1fr; }
+            #habitat-map { height: 320px; }
+            .quick-links { grid-template-columns: repeat(2, 1fr); }
+        }
+    </style>
+</head>
+<body>
+
+    <header>🌿 EcoDex: 멸종위기 생물 도감</header>
+
+    <div id="page-main" class="container page active">
+        <h2>안녕하세요, 환경 보호가님!</h2>
+        <p style="margin-bottom: 1.5rem;">EcoDex는 게임을 통해 멸종위기 생물들을 배우고 보전의 중요성을 깨닫는 학습 공간입니다. 퀴즈를 풀어 포유류, 조류, 양서류, 파충류, 곤충, 어류 도감을 해금하고 서식지 지도에서 위치도 확인해보세요!</p>
+        <div class="status-card">
+            <h3>나의 현재 학습 현황</h3>
+            <div class="status-item">현재 레벨: <span id="stat-level" style="font-weight:bold;">1</span></div>
+            <div class="status-item">경험치 (XP): <span id="stat-xp">0</span> / 100</div>
+            <div class="status-item">도감 해금 수: <span id="stat-dex-count">0</span> / <span id="stat-dex-total">0</span>개</div>
+        </div>
+        <div class="quick-links">
+            <button class="quick-link-btn" onclick="showPage('quiz')">
+                <span class="quick-link-icon">📝</span>
+                <span>퀴즈 풀기</span>
+            </button>
+            <button class="quick-link-btn" onclick="showPage('dex')">
+                <span class="quick-link-icon">📖</span>
+                <span>생물 도감</span>
+            </button>
+            <button class="quick-link-btn" onclick="showPage('map')">
+                <span class="quick-link-icon">🗺️</span>
+                <span>서식지 지도</span>
+            </button>
+            <button class="quick-link-btn" onclick="showPage('achieve')">
+                <span class="quick-link-icon">🏆</span>
+                <span>나의 업적</span>
+            </button>
+        </div>
+    </div>
+
+    <div id="page-quiz" class="container page">
+        <button class="back-home-btn" onclick="showPage('main')">← 메인 홈으로</button>
+        <h2>멸종위기 생물 퀴즈</h2>
+        <div class="quiz-box">
+            <div id="quiz-container">
+                <div class="question" id="quiz-question">문제를 불러오는 중입니다...</div>
+                <div class="options" id="quiz-options"></div>
+            </div>
+            <div id="quiz-result"></div>
+        </div>
+    </div>
+
+    <div id="page-dex" class="container page">
+        <button class="back-home-btn" onclick="showPage('main')">← 메인 홈으로</button>
+        <h2>멸종위기 생물 도감</h2>
+        <div class="category-tabs" id="category-tabs">
+            <button data-cat="all" class="active" onclick="setCategory('all')">전체</button>
+            <button data-cat="mammal" onclick="setCategory('mammal')">🐾 포유류</button>
+            <button data-cat="bird" onclick="setCategory('bird')">🦅 조류</button>
+            <button data-cat="amphibian" onclick="setCategory('amphibian')">🐸 양서류</button>
+            <button data-cat="reptile" onclick="setCategory('reptile')">🐢 파충류</button>
+            <button data-cat="insect" onclick="setCategory('insect')">🪲 곤충</button>
+            <button data-cat="fish" onclick="setCategory('fish')">🐟 어류</button>
+        </div>
+        <div class="dex-grid" id="dex-grid-container"></div>
+    </div>
+
+    <div id="page-map" class="container page">
+        <button class="back-home-btn" onclick="showPage('main')">← 메인 홈으로</button>
+        <h2>서식지 지도</h2>
+        <p class="map-desc">각 생물의 실제 서식 지역을 지도에서 확인해보세요. 아직 해금하지 않은 생물은 회색 마커로 표시되며, 정확한 정보는 퀴즈를 맞힌 뒤 확인할 수 있어요.</p>
+        <div id="habitat-map"></div>
+        <div class="map-legend">
+            <span><span class="legend-dot" style="background: #ff9b87;"></span>포유류</span>
+            <span><span class="legend-dot" style="background: #ffffff;"></span>조류</span>
+            <span><span class="legend-dot" style="background: #aed60d;"></span>양서류</span>
+            <span><span class="legend-dot" style="background: #19bd6d;"></span>파충류</span>
+            <span><span class="legend-dot" style="background: #2b2522;"></span>곤충</span>
+            <span><span class="legend-dot" style="background: #70c6ff;"></span>어류</span>
+            <span><span class="legend-dot locked-dot"></span>잠긴 생물</span>
+        </div>
+    </div>
+
+    <div id="page-achieve" class="container page">
+        <button class="back-home-btn" onclick="showPage('main')">← 메인 홈으로</button>
+        <h2>달성 업적</h2>
+        <div class="achievement-list" id="achievement-container"></div>
+    </div>
+
+    <div class="modal-overlay" id="creature-modal" onclick="closeModalOnOverlay(event)">
+        <div class="modal-box">
+            <button class="modal-close" onclick="closeModal()">✕</button>
+            <div class="modal-icon" id="modal-icon">🦁</div>
+            <h3 id="modal-name">생물 이름</h3>
+            <div class="modal-category"><span class="category-tag" id="modal-category-tag">분류</span></div>
+            <div class="modal-details">
+                <p><strong>🏡 서식지:</strong> <span id="modal-habitat"></span></p>
+                <p><strong>⚠️ 멸종 원인:</strong> <span id="modal-reason"></span></p>
+                <p><strong>🛡️ 보호 방안:</strong> <span id="modal-protection"></span></p>
+            </div>
+            <div class="modal-status-row">
+                <span class="modal-status-badge" id="modal-status">멸종위기 야생생물</span>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast"></div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+    <script>
+        const categoryNames = {
+            mammal: "포유류",
+            bird: "조류",
+            amphibian: "양서류",
+            reptile: "파충류",
+            insect: "곤충",
+            fish: "어류"
+        };
+
+        const categoryColors = {
+            mammal: "#ff9b87",   // 노란색주황색그어딘가아니면분홍색
+            bird: "#ffffff",     // 흰색
+            amphibian: "#aed60d",// 난색에 가까운 초록색
+            reptile: "#19bd6d",  // 한색에 가까운 초록색
+            insect: "#2b2522",   // 갈색이나 검은색
+            fish: "#70c6ff"      // 파란색
+        };
+
+        const creatures = [
+            { id: "creature1", name: "시베리아호랑이", category: "mammal", icon: "🐅", habitat: "울창한 산림, 침엽수림 지대", reason: "무분별한 밀렵 및 서식지 파괴", protection: "서식지 보호구역 지정, 밀렵 방지법 강화", status: "멸종위기 야생생물 I급", lat: 38.119, lng: 128.465, unlocked: false },
+            { id: "creature2", name: "반달가슴곰", category: "mammal", icon: "🐻", habitat: "지리산 등 고산지대 밀림", reason: "웅담 채취 목적의 밀렵, 개발로 인한 서식지 고립", protection: "국립공원 내 복원 사업 진행, 생태통로 설치", status: "멸종위기 야생생물 I급", lat: 35.3389, lng: 127.7300, unlocked: false },
+            { id: "creature3", name: "더미데이터m1", category: "mammal", icon: "🐻", habitat: "서식지", reason: "멸종원인", protection: "보호방안", status: "위기등급", lat: 35.3389, lng: 127.7300, unlocked: false },
+            { id: "creature4", name: "더미데이터m2", category: "mammal", icon: "🐻", habitat: "서식지", reason: "멸종원인", protection: "보호방안", status: "위기등급", lat: 35.3389, lng: 127.7300, unlocked: false },
+            { id: "creature5", name: "더미데이터m3", category: "mammal", icon: "🦢", habitat: "서식지", reason: "멸종원인", protection: "보호방안", status: "위기등급", lat: 38.1462, lng: 127.3128, unlocked: false },
+            { id: "creature6", name: "더미데이터m4", category: "mammal", icon: "🦩", habitat: "서식지", reason: "멸종원인", protection: "보호방안", status: "위기등급", lat: 37.6446, lng: 126.4044, unlocked: false },
+            { id: "creature7", name: "두루미", category: "bird", icon: "🦢", habitat: "비무장지대(DMZ) 및 습지, 갯벌", reason: "습지 매립 및 농경지 감소로 인한 월동지 파괴", protection: "철원·연천 등 월동지 보호구역 지정, 먹이터 조성 사업", status: "멸종위기 야생생물 I급", lat: 38.1462, lng: 127.3128, unlocked: false },
+            { id: "creature8", name: "저어새", category: "bird", icon: "🦩", habitat: "서해안 무인도 갯벌 및 간척지", reason: "번식지인 갯벌 매립, 환경 오염", protection: "번식섬 인공 둥지 설치, 갯벌 습지 보호구역 확대", status: "멸종위기 야생생물 I급", lat: 36.6446, lng: 126.4044, unlocked: false },
+            { id: "creature9", name: "더미데이터b1", category: "bird", icon: "🐢", habitat: "서식지", reason: "멸종원인", protection: "보호방안", status: "위기등급", lat: 38.1462, lng: 127.3128, unlocked: false },
+            { id: "creature10", name: "더미데이터b2", category: "bird", icon: "🐍", habitat: "서식지", reason: "멸종원인", protection: "보호방안", status: "위기등급", lat: 38.1462, lng: 127.3128, unlocked: false },
+            { id: "creature11", name: "더미데이터b3", category: "bird", icon: "🪲", habitat: "서식지", reason: "멸종원인", protection: "보호방안", status: "위기등급", lat: 38.1462, lng: 127.3128, unlocked: false },
+            { id: "creature12", name: "더미데이터b4", category: "bird", icon: "🦋", habitat: "서식지", reason: "멸종원인", protection: "보호방안", status: "위기등급", lat: 38.1462, lng: 127.3128, unlocked: false },
+            { id: "creature13", name: "수원청개구리", category: "amphibian", icon: "🐸", habitat: "논, 습지 등 평지의 수변 초지", reason: "논 습지 감소 및 농약 사용에 따른 서식지 오염", protection: "친환경 농법 확대, 서식 논습지 보전 사업", status: "멸종위기 야생생물 I급", lat: 37.0034, lng: 126.9784, unlocked: false },
+            { id: "creature14", name: "금개구리", category: "amphibian", icon: "🐸", habitat: "저지대 습지, 연못, 농수로", reason: "습지 매립 및 수질 오염, 외래종(황소개구리) 유입", protection: "서식 습지 복원, 외래종 퇴치 사업", status: "멸종위기 야생생물 II급", lat: 36.7845, lng: 126.4503, unlocked: false },
+            { id: "creature15", name: "더미데이터a1", category: "amphibian", icon: "🐻", habitat: "서식지", reason: "멸종원인", protection: "보호방안", status: "위기등급", lat: 38.1462, lng: 127.3128, unlocked: false },
+            { id: "creature16", name: "더미데이터a2", category: "amphibian", icon: "🐻", habitat: "서식지", reason: "멸종원인", protection: "보호방안", status: "위기등급", lat: 38.1462, lng: 127.3128, unlocked: false },
+            { id: "creature17", name: "더미데이터a3", category: "amphibian", icon: "🐻", habitat: "서식지", reason: "멸종원인", protection: "보호방안", status: "위기등급", lat: 38.1462, lng: 127.3128, unlocked: false },
+            { id: "creature18", name: "더미데이터a4", category: "amphibian", icon: "🐻", habitat: "서식지", reason: "멸종원인", protection: "보호방안", status: "위기등급", lat: 38.1462, lng: 127.3128, unlocked: false },
+            { id: "creature19", name: "남생이", category: "reptile", icon: "🐢", habitat: "하천, 저수지, 연못 등 담수 지역", reason: "무분별한 포획 및 방생, 서식지 파괴, 외래종(붉은귀거북) 경쟁", protection: "방사 사업 및 인공 증식, 서식지 하천 정비 사업", status: "멸종위기 야생생물 II급", lat: 34.9333, lng: 127.5058, unlocked: false },
+            { id: "creature20", name: "구렁이", category: "reptile", icon: "🐍", habitat: "산림 및 농경지 주변 돌담, 숲", reason: "서식지 파괴 및 밀렵, 로드킬 증가", protection: "서식지 숲 보전, 생태통로 조성", status: "멸종위기 야생생물 II급", lat: 37.6000, lng: 128.4000, unlocked: false },
+            { id: "creature21", name: "더미데이터r1", category: "reptile", icon: "🐻", habitat: "서식지", reason: "멸종원인", protection: "보호방안", status: "위기등급", lat: 38.1462, lng: 127.3128, unlocked: false },
+            { id: "creature22", name: "더미데이터r2", category: "reptile", icon: "🐻", habitat: "서식지", reason: "멸종원인", protection: "보호방안", status: "위기등급", lat: 38.1462, lng: 127.3128, unlocked: false },
+            { id: "creature23", name: "더미데이터r3", category: "reptile", icon: "🐻", habitat: "서식지", reason: "멸종원인", protection: "보호방안", status: "위기등급", lat: 38.1462, lng: 127.3128, unlocked: false },
+            { id: "creature24", name: "더미데이터r4", category: "reptile", icon: "🐻", habitat: "서식지", reason: "멸종원인", protection: "보호방안", status: "위기등급", lat: 38.1462, lng: 127.3128, unlocked: false },
+            { id: "creature25", name: "장수하늘소", category: "insect", icon: "🪲", habitat: "광릉숲 등 원시림의 고목", reason: "숲 벌채 및 고목 감소로 인한 서식지 축소", protection: "광릉숲 천연기념물 보호구역 지정, 고사목 보전", status: "멸종위기 야생생물 I급", lat: 37.7500, lng: 127.1500, unlocked: false },
+            { id: "creature26", name: "대모잠자리", category: "insect", icon: "🐻", habitat: "저지대 습지 및 둠벙", reason: "습지 매립과 농경지 개발로 인한 산란지 감소", protection: "습지 및 둠벙 복원 사업, 서식지 모니터링", status: "멸종위기 야생생물 II급", lat: 36.3504, lng: 127.3845, unlocked: false },
+            { id: "creature27", name: "더미데이터i1", category: "insect", icon: "🐻", habitat: "서식지", reason: "멸종원인", protection: "보호방안", status: "위기등급", lat: 38.1462, lng: 127.3128, unlocked: false },
+            { id: "creature28", name: "더미데이터i2", category: "insect", icon: "🐻", habitat: "서식지", reason: "멸종원인", protection: "보호방안", status: "위기등급", lat: 38.1462, lng: 127.3128, unlocked: false },
+            { id: "creature29", name: "더미데이터i3", category: "insect", icon: "🐻", habitat: "서식지", reason: "멸종원인", protection: "보호방안", status: "위기등급", lat: 38.1462, lng: 127.3128, unlocked: false },
+            { id: "creature30", name: "더미데이터i4", category: "insect", icon: "🐻", habitat: "서식지", reason: "멸종원인", protection: "보호방안", status: "위기등급", lat: 38.1462, lng: 127.3128, unlocked: false },
+            { id: "creature31", name: "미호종개", category: "fish", icon: "🐻", habitat: "모래가 깔린 맑은 하천 (미호천 수계)", reason: "하천 준설 및 수질 오염으로 인한 모래 서식지 소실", protection: "미호천 수질 개선 사업, 서식지 복원 및 증식 방류", status: "멸종위기 야생생물 I급", lat: 36.6000, lng: 127.4500, unlocked: false },
+            { id: "creature32", name: "꼬치동자개", category: "fish", icon: "🐻", habitat: "자갈과 모래가 있는 하천 중상류", reason: "하천 개발 및 보 설치로 인한 서식지 단절", protection: "금강 수계 보전 사업, 인공 증식 및 방류", status: "멸종위기 야생생물 I급", lat: 36.0000, lng: 127.3000, unlocked: false },
+            { id: "creature33", name: "더미데이터f1", category: "fish", icon: "🐻", habitat: "서식지", reason: "멸종원인", protection: "보호방안", status: "위기등급", lat: 38.1462, lng: 127.3128, unlocked: false },
+            { id: "creature34", name: "더미데이터f2", category: "fish", icon: "🐻", habitat: "서식지", reason: "멸종원인", protection: "보호방안", status: "위기등급", lat: 38.1462, lng: 127.3128, unlocked: false },
+            { id: "creature35", name: "더미데이터f3", category: "fish", icon: "🐻", habitat: "서식지", reason: "멸종원인", protection: "보호방안", status: "위기등급", lat: 38.1462, lng: 127.3128, unlocked: false },
+            { id: "creature36", name: "더미데이터f4", category: "fish", icon: "🐻", habitat: "서식지", reason: "멸종원인", protection: "보호방안", status: "위기등급", lat: 38.1462, lng: 127.3128, unlocked: false }
+        ];
+
+        // 퀴즈 데이터: 실제 12종 + 카테고리별 더미 4종씩(총 36문항 = creatures.length와 일치)
+        const quizData = [
+            { question: "대한민국 지리산에서 복원 사업이 진행 중이며, 가슴에 반달 모양의 하얀 무늬가 특징인 멸종위기 야생생물 I급 동물은 무엇일까요?", options: ["시베리아호랑이", "반달가슴곰", "불곰", "스라소니"], answer: "반달가슴곰", targetId: "creature2" },
+            { question: "과거 한반도에 서식했으나 현재는 한국에서 야생 개체를 보기 힘들어진, 무분별한 밀렵과 서식지 파괴로 위기에 처한 대형 고양이과 동물은?", options: ["치타", "표범", "시베리아호랑이", "스라소니"], answer: "시베리아호랑이", targetId: "creature1" },
+            { question: "[테스트 문항] 보기 중 '더미데이터m1'을 고르세요.", options: ["더미데이터m1", "더미데이터m2", "더미데이터m3", "더미데이터m4"], answer: "더미데이터m1", targetId: "creature3" },
+            { question: "[테스트 문항] 보기 중 '더미데이터m2'를 고르세요.", options: ["더미데이터m4", "더미데이터m2", "더미데이터m1", "더미데이터m3"], answer: "더미데이터m2", targetId: "creature4" },
+            { question: "[테스트 문항] 보기 중 '더미데이터m3'을 고르세요.", options: ["더미데이터m1", "더미데이터m3", "더미데이터m4", "더미데이터m2"], answer: "더미데이터m3", targetId: "creature5" },
+            { question: "[테스트 문항] 보기 중 '더미데이터m4'를 고르세요.", options: ["더미데이터m2", "더미데이터m1", "더미데이터m4", "더미데이터m3"], answer: "더미데이터m4", targetId: "creature6" },
+            { question: "겨울철 비무장지대(DMZ)와 철원 평야를 찾아오는, 온몸이 하얗고 정수리가 붉은 우리나라 대표 겨울 철새는?", options: ["황새", "두루미", "따오기", "재두루미"], answer: "두루미", targetId: "creature7" },
+            { question: "부리 끝이 주걱처럼 넓적하며 서해안 무인도 갯벌에서 번식하는, 전 세계적으로 개체 수가 매우 적은 멸종위기 여름 철새는?", options: ["황새", "노랑부리백로", "저어새", "왜가리"], answer: "저어새", targetId: "creature8" },
+            { question: "[테스트 문항] 보기 중 '더미데이터b1'을 고르세요.", options: ["더미데이터b1", "더미데이터b2", "더미데이터b3", "더미데이터b4"], answer: "더미데이터b1", targetId: "creature9" },
+            { question: "[테스트 문항] 보기 중 '더미데이터b2'를 고르세요.", options: ["더미데이터b3", "더미데이터b2", "더미데이터b4", "더미데이터b1"], answer: "더미데이터b2", targetId: "creature10" },
+            { question: "[테스트 문항] 보기 중 '더미데이터b3'을 고르세요.", options: ["더미데이터b1", "더미데이터b4", "더미데이터b3", "더미데이터b2"], answer: "더미데이터b3", targetId: "creature11" },
+            { question: "[테스트 문항] 보기 중 '더미데이터b4'를 고르세요.", options: ["더미데이터b2", "더미데이터b1", "더미데이터b3", "더미데이터b4"], answer: "더미데이터b4", targetId: "creature12" },
+            { question: "논이나 습지에서 서식하며 한국 고유종으로, 농약 사용과 논 습지 감소로 개체 수가 크게 줄어든 멸종위기 야생생물 I급 개구리는?", options: ["금개구리", "수원청개구리", "청개구리", "맹꽁이"], answer: "수원청개구리", targetId: "creature13" },
+            { question: "황금빛 몸 색과 등 옆으로 뻗은 굵은 융기선이 특징이며, 외래종 황소개구리의 유입으로 위협받고 있는 멸종위기 야생생물 II급 개구리는?", options: ["참개구리", "금개구리", "옴개구리", "물개구리"], answer: "금개구리", targetId: "creature14" },
+            { question: "[테스트 문항] 보기 중 '더미데이터a1'을 고르세요.", options: ["더미데이터a1", "더미데이터a2", "더미데이터a3", "더미데이터a4"], answer: "더미데이터a1", targetId: "creature15" },
+            { question: "[테스트 문항] 보기 중 '더미데이터a2'를 고르세요.", options: ["더미데이터a3", "더미데이터a2", "더미데이터a1", "더미데이터a4"], answer: "더미데이터a2", targetId: "creature16" },
+            { question: "[테스트 문항] 보기 중 '더미데이터a3'을 고르세요.", options: ["더미데이터a4", "더미데이터a1", "더미데이터a3", "더미데이터a2"], answer: "더미데이터a3", targetId: "creature17" },
+            { question: "[테스트 문항] 보기 중 '더미데이터a4'를 고르세요.", options: ["더미데이터a2", "더미데이터a4", "더미데이터a1", "더미데이터a3"], answer: "더미데이터a4", targetId: "creature18" },
+            { question: "하천이나 저수지에 서식하며, 외래종인 붉은귀거북과의 경쟁 및 무분별한 방생으로 위협받는 우리나라 토종 거북은?", options: ["자라", "남생이", "붉은귀거북", "바다거북"], answer: "남생이", targetId: "creature19" },
+            { question: "산림과 농경지 주변 돌담이나 숲에 서식하며, 로드킬과 서식지 파괴로 개체 수가 줄어든 우리나라에서 가장 큰 뱀은?", options: ["살모사", "구렁이", "유혈목이", "능구렁이"], answer: "구렁이", targetId: "creature20" },
+            { question: "[테스트 문항] 보기 중 '더미데이터r1'을 고르세요.", options: ["더미데이터r1", "더미데이터r2", "더미데이터r3", "더미데이터r4"], answer: "더미데이터r1", targetId: "creature21" },
+            { question: "[테스트 문항] 보기 중 '더미데이터r2'를 고르세요.", options: ["더미데이터r4", "더미데이터r2", "더미데이터r1", "더미데이터r3"], answer: "더미데이터r2", targetId: "creature22" },
+            { question: "[테스트 문항] 보기 중 '더미데이터r3'을 고르세요.", options: ["더미데이터r1", "더미데이터r3", "더미데이터r4", "더미데이터r2"], answer: "더미데이터r3", targetId: "creature23" },
+            { question: "[테스트 문항] 보기 중 '더미데이터r4'를 고르세요.", options: ["더미데이터r2", "더미데이터r1", "더미데이터r4", "더미데이터r3"], answer: "더미데이터r4", targetId: "creature24" },
+            { question: "경기도 광릉숲의 원시림 고목에 서식하며, 우리나라에서 가장 큰 딱정벌레류로 꼽히는 멸종위기 야생생물 I급 곤충은?", options: ["사슴벌레", "장수하늘소", "장수풍뎅이", "하늘소"], answer: "장수하늘소", targetId: "creature25" },
+            { question: "저지대 습지와 둠벙에 알을 낳으며, 습지 매립으로 산란 장소를 잃어가고 있는 멸종위기 야생생물 II급 잠자리는?", options: ["왕잠자리", "대모잠자리", "된장잠자리", "실잠자리"], answer: "대모잠자리", targetId: "creature26" },
+            { question: "[테스트 문항] 보기 중 '더미데이터i1'을 고르세요.", options: ["더미데이터i1", "더미데이터i2", "더미데이터i3", "더미데이터i4"], answer: "더미데이터i1", targetId: "creature27" },
+            { question: "[테스트 문항] 보기 중 '더미데이터i2'를 고르세요.", options: ["더미데이터i3", "더미데이터i2", "더미데이터i4", "더미데이터i1"], answer: "더미데이터i2", targetId: "creature28" },
+            { question: "[테스트 문항] 보기 중 '더미데이터i3'을 고르세요.", options: ["더미데이터i1", "더미데이터i4", "더미데이터i3", "더미데이터i2"], answer: "더미데이터i3", targetId: "creature29" },
+            { question: "[테스트 문항] 보기 중 '더미데이터i4'를 고르세요.", options: ["더미데이터i2", "더미데이터i1", "더미데이터i3", "더미데이터i4"], answer: "더미데이터i4", targetId: "creature30" },
+            { question: "충청북도 미호천 수계의 모래 하천에만 서식하는 한국 고유종으로, 하천 준설과 수질 오염으로 위기에 처한 멸종위기 야생생물 I급 물고기는?", options: ["미꾸리", "미호종개", "동자개", "쉬리"], answer: "미호종개", targetId: "creature31" },
+            { question: "금강 수계의 자갈과 모래가 있는 하천 중상류에 서식하며, 보 설치로 서식지가 단절되고 있는 멸종위기 야생생물 I급 동자갯과 물고기는?", options: ["동자개", "꼬치동자개", "메기", "퉁가리"], answer: "꼬치동자개", targetId: "creature32" },
+            { question: "[테스트 문항] 보기 중 '더미데이터f1'을 고르세요.", options: ["더미데이터f1", "더미데이터f2", "더미데이터f3", "더미데이터f4"], answer: "더미데이터f1", targetId: "creature33" },
+            { question: "[테스트 문항] 보기 중 '더미데이터f2'를 고르세요.", options: ["더미데이터f3", "더미데이터f2", "더미데이터f4", "더미데이터f1"], answer: "더미데이터f2", targetId: "creature34" },
+            { question: "[테스트 문항] 보기 중 '더미데이터f3'을 고르세요.", options: ["더미데이터f1", "더미데이터f4", "더미데이터f3", "더미데이터f2"], answer: "더미데이터f3", targetId: "creature35" },
+            { question: "[테스트 문항] 보기 중 '더미데이터f4'를 고르세요.", options: ["더미데이터f2", "더미데이터f1", "더미데이터f3", "더미데이터f4"], answer: "더미데이터f4", targetId: "creature36" }
+        ];
+
+        quizData.sort(() => Math.random() - 0.5);
+
+        const achievements = [
+            { id: "ach1", title: "첫걸음 환경가", desc: "첫 번째 퀴즈 맞히기", cleared: false, check: () => player.unlockedCount >= 1 },
+            { id: "ach2", title: "포유류 박사", desc: "모든 포유류 도감 해금하기", cleared: false, check: () => isCategoryComplete("mammal") },
+            { id: "ach3", title: "조류 박사", desc: "모든 조류 도감 해금하기", cleared: false, check: () => isCategoryComplete("bird") },
+            { id: "ach4", title: "양서류 박사", desc: "모든 양서류 도감 해금하기", cleared: false, check: () => isCategoryComplete("amphibian") },
+            { id: "ach5", title: "파충류 박사", desc: "모든 파충류 도감 해금하기", cleared: false, check: () => isCategoryComplete("reptile") },
+            { id: "ach6", title: "곤충 박사", desc: "모든 곤충 도감 해금하기", cleared: false, check: () => isCategoryComplete("insect") },
+            { id: "ach7", title: "어류 박사", desc: "모든 어류 도감 해금하기", cleared: false, check: () => isCategoryComplete("fish") },
+            { id: "ach8", title: "도감 마스터", desc: "모든 생물 도감 해금하기", cleared: false, check: () => player.unlockedCount === creatures.length },
+            { id: "ach9", title: "레벨업 달성", desc: "레벨 2 이상 도달하기", cleared: false, check: () => player.level >= 2 },
+            { id: "ach10", title: "탐험가", desc: "서식지 지도에서 마커를 한 번 이상 확인하기", cleared: false, check: () => player.mapViewed === true }
+        ];
+
+        let player = { level: 1, xp: 0, unlockedCount: 0, mapViewed: false };
+        let currentQuizIndex = 0;
+        let currentCategory = 'all';
+        let habitatMap = null;
+        let mapMarkers = [];
+
+        function showPage(pageId) {
+            document.querySelectorAll('.page').forEach(page => page.classList.remove('active'));
+            document.getElementById(`page-${pageId}`).classList.add('active');
+            window.scrollTo({ top: 0, behavior: 'instant' });
+            updateUI();
+            if (pageId === 'quiz') loadQuiz();
+            if (pageId === 'map') { player.mapViewed = true; initHabitatMap(); }
+        }
+
+        function setCategory(cat) {
+            currentCategory = cat;
+            document.querySelectorAll('.category-tabs button').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.cat === cat);
+            });
+            renderDex();
+        }
+
+        function isCategoryComplete(cat) {
+            const inCat = creatures.filter(c => c.category === cat);
+            return inCat.length > 0 && inCat.every(c => c.unlocked);
+        }
+
+        function updateUI() {
+            document.getElementById('stat-level').innerText = player.level;
+            document.getElementById('stat-xp').innerText = player.xp;
+            document.getElementById('stat-dex-count').innerText = player.unlockedCount;
+            document.getElementById('stat-dex-total').innerText = creatures.length;
+            renderDex();
+            renderAchievements();
+            if (habitatMap) renderMapMarkers();
+        }
+
+        function renderDex() {
+            const dexContainer = document.getElementById('dex-grid-container');
+            dexContainer.innerHTML = '';
+            const filtered = currentCategory === 'all' ? creatures : creatures.filter(c => c.category === currentCategory);
+            if (filtered.length === 0) {
+                dexContainer.innerHTML = '<div class="empty-msg">해당 분류의 생물이 없습니다.</div>';
+                return;
+            }
+            filtered.forEach(c => {
+                const item = document.createElement('div');
+                item.className = `dex-item ${c.unlocked ? 'unlocked' : ''}`;
+                if (c.unlocked) {
+                    item.innerHTML = `
+                        <div class="dex-icon">${c.icon}</div>
+                        <span class="category-tag">${categoryNames[c.category]}</span>
+                        <h3>${c.name}</h3>
+                        <span class="badge">해금 완료</span>
+                        <div class="dex-hint">탭하여 자세히 보기</div>
+                    `;
+                    item.onclick = () => openModal(c.id);
+                } else {
+                    item.innerHTML = `
+                        <div class="dex-icon">🔒</div>
+                        <span class="category-tag">${categoryNames[c.category]}</span>
+                        <h3>잠긴 생물</h3>
+                        <p class="dex-hint">퀴즈를 맞춰 이 도감을 해금하세요.</p>
+                    `;
+                }
+                dexContainer.appendChild(item);
+            });
+        }
+
+        function renderAchievements() {
+            checkAchievements();
+            const achieveContainer = document.getElementById('achievement-container');
+            achieveContainer.innerHTML = '';
+            achievements.forEach(a => {
+                const item = document.createElement('div');
+                item.className = `achievement-item ${a.cleared ? 'cleared' : ''}`;
+                item.innerHTML = `
+                    <div>
+                        <div>${a.title}</div>
+                        <div style="font-size:0.85rem; color:#666;">${a.desc}</div>
+                    </div>
+                    <div class="achievement-status">${a.cleared ? '🏆 달성' : '🔒 진행 중'}</div>
+                `;
+                achieveContainer.appendChild(item);
+            });
+        }
+
+        function initHabitatMap() {
+            if (!habitatMap) {
+                habitatMap = L.map('habitat-map').setView([36.5, 127.8], 7);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+                    maxZoom: 18
+                }).addTo(habitatMap);
+            }
+            setTimeout(() => habitatMap.invalidateSize(), 100);
+            renderMapMarkers();
+        }
+
+        function renderMapMarkers() {
+            if (!habitatMap) return;
+            mapMarkers.forEach(m => habitatMap.removeLayer(m));
+            mapMarkers = [];
+            creatures.forEach(c => {
+                const color = c.unlocked ? categoryColors[c.category] : '#9e9e9e';
+                const dotIcon = L.divIcon({
+                    className: '',
+                    html: `<div style="background:${color}; width:16px; height:16px; border-radius:50%; border:2px solid white; box-shadow:0 0 4px rgba(0,0,0,0.4);"></div>`,
+                    iconSize: [16, 16],
+                    iconAnchor: [8, 8]
+                });
+                const marker = L.marker([c.lat, c.lng], { icon: dotIcon }).addTo(habitatMap);
+                if (c.unlocked) {
+                    marker.bindPopup(`
+                        <div class="popup-icon">${c.icon}</div>
+                        <div class="popup-title">${c.name}</div>
+                        <div style="font-size:0.8rem; color:#666;">${c.habitat}</div>
+                        <button class="popup-btn" onclick="openModal('${c.id}')">자세히 보기</button>
+                    `);
+                } else {
+                    marker.bindPopup(`
+                        <div class="popup-icon">🔒</div>
+                        <div class="popup-title">${categoryNames[c.category]} - 잠긴 생물</div>
+                        <div style="font-size:0.8rem; color:#666;">퀴즈를 맞추면 위치 정보가 공개됩니다.</div>
+                    `);
+                }
+                mapMarkers.push(marker);
+            });
+        }
+
+        function loadQuiz() {
+            const resultDiv = document.getElementById('quiz-result');
+            resultDiv.innerText = '';
+            if (currentQuizIndex >= quizData.length) {
+                document.getElementById('quiz-container').innerHTML = "<div class='question'>🎉 준비된 모든 퀴즈를 풀었습니다! 도감과 업적을 확인해보세요.</div>";
+                return;
+            }
+            const currentQuiz = quizData[currentQuizIndex];
+            document.getElementById('quiz-question').innerText = `Q${currentQuizIndex + 1}. ${currentQuiz.question}`;
+            const optionsContainer = document.getElementById('quiz-options');
+            optionsContainer.innerHTML = '';
+            const shuffledOptions = [...currentQuiz.options].sort(() => Math.random() - 0.5);
+            
+            shuffledOptions.forEach(opt => {
+                const btn = document.createElement('button');
+                btn.innerText = opt;
+                btn.onclick = () => selectAnswer(opt, currentQuiz.answer, currentQuiz.targetId);
+                optionsContainer.appendChild(btn);
+            });
+        }
+
+        function selectAnswer(selected, correct, targetId) {
+            const resultDiv = document.getElementById('quiz-result');
+            const optionButtons = document.querySelectorAll('#quiz-options button');
+            if (selected === correct) {
+                optionButtons.forEach(btn => {
+                    btn.disabled = true;
+                    btn.style.cursor = 'default';
+                    btn.style.opacity = '0.6';
+                });
+                resultDiv.style.color = 'green';
+                resultDiv.innerText = '⭕ 정답입니다! 경험치 +50 XP를 획득하고 도감이 해금되었습니다!';
+                player.xp += 50;
+                if (player.xp >= 100) {
+                    player.level += 1;
+                    player.xp -= 100;
+                    showToast('🎉 레벨 업! 축하합니다!');
+                }
+                const targetCreature = creatures.find(c => c.id === targetId);
+                if (targetCreature && !targetCreature.unlocked) {
+                    targetCreature.unlocked = true;
+                    player.unlockedCount++;
+                    showToast(`📖 '${targetCreature.name}' 도감이 해금되었습니다!`);
+                }
+                const nextBtn = document.createElement('button');
+                nextBtn.innerText = '다음 문제 풀기 ➡️';
+                nextBtn.style = 'margin-top:10px; padding: 0.5rem 1rem; background:#2e7d32; color:white; border:none; border-radius:4px; cursor:pointer;';
+                nextBtn.onclick = () => { currentQuizIndex++; loadQuiz(); };
+                resultDiv.appendChild(document.createElement('br'));
+                resultDiv.appendChild(nextBtn);
+            } else {
+                resultDiv.style.color = 'red';
+                resultDiv.innerText = '❌ 틀렸습니다. 다시 한 번 생각해보세요!';
+            }
+            updateUI();
+        }
+
+        function checkAchievements() {
+            achievements.forEach(a => {
+                if (!a.cleared && a.check()) a.cleared = true;
+            });
+        }
+
+        function openModal(creatureId) {
+            const c = creatures.find(cr => cr.id === creatureId);
+            if (!c) return;
+            document.getElementById('modal-icon').innerText = c.icon;
+            document.getElementById('modal-name').innerText = c.name;
+            document.getElementById('modal-category-tag').innerText = categoryNames[c.category];
+            document.getElementById('modal-habitat').innerText = c.habitat;
+            document.getElementById('modal-reason').innerText = c.reason;
+            document.getElementById('modal-protection').innerText = c.protection;
+            document.getElementById('modal-status').innerText = c.status;
+            document.getElementById('creature-modal').classList.add('open');
+        }
+
+        function closeModal() {
+            document.getElementById('creature-modal').classList.remove('open');
+        }
+
+        function closeModalOnOverlay(event) {
+            if (event.target.id === 'creature-modal') closeModal();
+        }
+
+        document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal(); });
+
+        let toastTimer = null;
+        function showToast(message) {
+            const toast = document.getElementById('toast');
+            toast.innerText = message;
+            toast.classList.add('show');
+            clearTimeout(toastTimer);
+            toastTimer = setTimeout(() => toast.classList.remove('show'), 2500);
+        }
+
+        updateUI();
+    </script>
+</body>
+</html>
